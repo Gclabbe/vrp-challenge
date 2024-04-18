@@ -79,25 +79,29 @@ def load_data(filename: str, origin: Optional[Tuple[float]] = None) -> pd.DataFr
     loads_df["dropoff"] = loads_df["dropoff"].apply(ast.literal_eval)
 
     # add a row for the origin at the end of the list
-    loads.loc[len(loads)] = [0, origin, origin]
+    loads_df.loc[len(loads_df)] = [0, origin, origin]
 
     # - use numpy or pandas to compute all distances up front (o->p, p->d, d->o)
-    loads_df["o2p"] = loads.apply(lambda row: distance(origin, row["pickup"]), axis=1)
-    loads_df["p2d"] = loads.apply(
+    loads_df["o2p"] = loads_df.apply(
+        lambda row: distance(origin, row["pickup"]), axis=1
+    )
+    loads_df["p2d"] = loads_df.apply(
         lambda row: distance(row["pickup"], row["dropoff"]), axis=1
     )
-    loads_df["d2o"] = loads.apply(lambda row: distance(row["dropoff"], origin), axis=1)
-    loads_df["pdo"] = loads.apply(lambda row: row["p2d"] + row["d2o"], axis=1)
+    loads_df["d2o"] = loads_df.apply(
+        lambda row: distance(row["dropoff"], origin), axis=1
+    )
+    loads_df["pdo"] = loads_df.apply(lambda row: row["p2d"] + row["d2o"], axis=1)
 
     # pre-compute d -> all other p in advance for NN heuristic
     pickups = loads_df["pickup"][:-1]  # exclude the origin
-    loads_df["d2p"] = loads.apply(
+    loads_df["d2p"] = loads_df.apply(
         lambda row: calc_nn(row["pickup"], row["dropoff"], pickups), axis=1
     )
-    loads_df["nn"] = loads.apply(lambda row: sorted_indices(row["d2p"]), axis=1)
+    loads_df["nn"] = loads_df.apply(lambda row: sorted_indices(row["d2p"]), axis=1)
     loads_df["completed"] = False
 
-    return loads
+    return loads_df
 
 
 def get_next_job(
@@ -120,27 +124,27 @@ def get_next_job(
     :return: index of the next job to add to the route and the new time used after completing it
     :rtype: Tuple[int, float]
     """
-    origin_idx = len(loads) - 1
+    origin_idx = len(loads_df) - 1
     nn_list = loads_df.iloc[current_job_idx]["nn"]
 
     # check if we can fit the closest job in ... if closest is True, return that one
     for nn_idx in nn_list:
-        if loads.at[nn_idx, "completed"] or nn_idx == origin_idx:
+        if loads_df.at[nn_idx, "completed"] or nn_idx == origin_idx:
             continue
 
         # get dropoff -> pickup and pickup -> dropoff -> origin to check total
-        travel_to_next_pickup = loads.iloc[current_job_idx]["d2p"][nn_idx]
-        next_pickup_to_origin = loads.iloc[nn_idx]["pdo"]
+        travel_to_next_pickup = loads_df.iloc[current_job_idx]["d2p"][nn_idx]
+        next_pickup_to_origin = loads_df.iloc[nn_idx]["pdo"]
         potential_time = current_time + travel_to_next_pickup + next_pickup_to_origin
 
         # if under time budget or only thing that fits is straight to origin, done
         if potential_time <= max_time:
-            next_pickup_to_dropoff = loads.iloc[nn_idx]["p2d"]
+            next_pickup_to_dropoff = loads_df.iloc[nn_idx]["p2d"]
             new_time = current_time + travel_to_next_pickup + next_pickup_to_dropoff
             return nn_idx, new_time
 
     # if we get here, we can't fit any more jobs in
-    return_to_origin_time = loads.iloc[current_job_idx]["d2o"]
+    return_to_origin_time = loads_df.iloc[current_job_idx]["d2o"]
     new_time = current_time + return_to_origin_time
     return origin_idx, new_time
 
@@ -162,13 +166,13 @@ def create_routes(
     driver_time_limit = driver_hours_limit * 60  # convert hours to minutes
     route = []
     new_time = 0
-    origin_idx = len(loads) - 1
+    origin_idx = len(loads_df) - 1
     current_job_idx = origin_idx
 
     # ignore the origin when checking if all jobs are completed
     while not loads_df.iloc[:-1]["completed"].all():
         next_job_idx, new_time = get_next_job(
-            loads,
+            loads_df,
             current_job_idx=current_job_idx,
             current_time=new_time,
             max_time=driver_time_limit,
@@ -205,7 +209,7 @@ if __name__ == "__main__":
 
     # ignore the origin when checking if all jobs are completed
     while not loads_df.iloc[:-1]["completed"].all():
-        loads, driver_data = create_routes(
+        loads_df, driver_data = create_routes(
             loads_df=loads_df,
             driver_hours_limit=driver_hours_limit,
         )
@@ -217,7 +221,7 @@ if __name__ == "__main__":
         # print("*" * 20)
         # print(driver_data)
         # print("*" * 20)
-        # # print(loads)
+        # # print(loads_df)
 
     # print("Execution time:", time.time() - start)
     # print(len(routes))
