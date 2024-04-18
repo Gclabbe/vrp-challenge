@@ -50,3 +50,8 @@ Coding a solutions to the Vehicle Routing Problem (VRP) for Vorto interview proc
     * was showing 517 mS through evaluation script after rebuild
     * now showing 608 mS
     * ... disable decorators for submission :( ... back to 515 mS
+
+## research sources
+- https://vrpy.readthedocs.io/en/latest/index.html ... python library for VRP problems
+- https://medium.com/@writingforara/solving-vehicle-routing-problems-with-python-heuristics-algorithm-2cc57fe7079c
+- OpenAI. "GPT-4 Model." OpenAI, 2023, www.openai.com.
